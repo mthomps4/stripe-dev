@@ -10,6 +10,10 @@ const { v4: uuidv4 } = require("uuid");
 
 const allitems = {};
 
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+
+if (!stripeKey) throw new Error("Missing Stripe Secret Key");
+
 // const MIN_ITEMS_FOR_DISCOUNT = 2;
 app.use(express.static(process.env.STATIC_DIR));
 
@@ -34,6 +38,8 @@ const config = JSON.parse(configFile);
 
 // load items file for video courses
 const file = require("../items.json");
+const { default: Stripe } = require("stripe");
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 file.forEach((item) => {
   const initializedItem = item;
@@ -120,9 +126,41 @@ app.get("/lessons", (req, res) => {
   }
 });
 
-app.post("/lessons", (req, res) => {
-  // SetupIntent here
-  // name, email, lesson, card
+app.post("/lessons", async (req, res) => {
+  const {
+    body: { date, time, name, email },
+  } = req;
+
+  const lessonMetaData = JSON.stringify({
+    date,
+    time,
+  });
+
+  // Create Customer w/ uniq email
+  // - add meta data "first_lesson" - Lesson date and time they select
+  const customer = await stripe.customers.create({
+    name,
+    email,
+    metadata: {
+      lesson: lessonMetaData,
+    },
+  });
+
+  // if customer fails...
+
+  // Create Intent w/out payment
+  const setupIntent = await stripe.setupIntents.create({
+    customer: customer.id,
+    payment_method_types: ["card"],
+    metadata: {
+      lesson: lessonMetaData,
+    },
+    expand: ["customer"],
+  });
+
+  // if setup fails...
+
+  return res.json({ setupIntent });
 });
 
 // Milestone 2: '/schedule-lesson'
