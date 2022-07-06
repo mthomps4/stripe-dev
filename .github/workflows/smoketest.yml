@@ -1,0 +1,246 @@
+name: Smoke Test Workflow
+# Workflow set to run on push
+on: 
+  push:
+    branches: ['master']
+    paths-ignore:
+      - '.github/workflows/**'
+
+jobs:
+  check-for-code-presence:
+    name: Check for Code Presence
+    runs-on: ubuntu-latest
+    outputs:
+      is_full_code_present: ${{ steps.pre_smoke.outputs.is_full_code_present }}
+    steps:
+      - name: Obtain a GitHub App Access Token
+        if: always()
+        run: |
+          TOKEN="$(npx obtain-github-app-installation-access-token ci ${{ secrets.WORKFLOW_TOKEN }})"
+          echo "::add-mask::$TOKEN"
+          echo "wf-github-token=$TOKEN" >> $GITHUB_ENV
+
+      - name: Checkout Template Repo
+        uses: actions/checkout@v2
+        with:
+          ref: master
+          token: ${{ env.wf-github-token }}
+          path: template_repo
+
+      - name: Check if Code, Server and Client Folders Exist
+        id: pre_smoke
+        run: |
+          if [ -d "code" ] && [ -d "code/server" ] && [ -d "code/client" ] && [ ${{ !(contains(github.repository, 'php') && contains(github.repository, 'html')) }} ]
+          then
+              echo "::set-output name=is_full_code_present::true"
+          elif [ -d "code" ] && [ -d "code/server" ] && [ ${{ contains(github.repository, 'php') && contains(github.repository, 'html') }} ]
+          then
+              echo "::set-output name=is_full_code_present::true"
+          else
+              echo "::set-output name=is_full_code_present::false"              
+          fi
+        working-directory: ${{ github.workspace }}/template_repo
+
+  setup:
+    runs-on: ubuntu-latest
+    needs: check-for-code-presence
+    if: ${{ needs.check-for-code-presence.outputs.is_full_code_present == 'true' }}
+    strategy:
+      matrix:
+        operating-system: ['ubuntu-latest']
+        php-versions: ['8.0.8']
+        phpunit-versions: ['latest']
+        include:
+          - operating-system: 'ubuntu-latest'
+            php-versions: '8.0.8'
+        node-version: [14.x]
+        ruby-version: [3.0.1]
+    env: 
+      working-directory: ./test
+      client-directory: ./client
+      my-workspace: ${{ github.workspace }}/headref
+      start-sh-exists: true
+      debug-flag: false
+
+    steps:
+      - name: Obtain a GitHub App Access Token
+        if: always()
+        run: |
+          TOKEN="$(npx obtain-github-app-installation-access-token ci ${{ secrets.WORKFLOW_TOKEN }})"
+          echo "::add-mask::$TOKEN"
+          echo "wf-github-token=$TOKEN" >> $GITHUB_ENV
+      
+      - name: Checkout Head Ref
+        uses: actions/checkout@v2
+        if: always()
+        with:
+          ref: master
+          token: ${{ env.wf-github-token }}
+          path: headref
+
+      ##START Node and React##
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        if: contains(github.repository, 'node') || contains(github.repository, 'PHP') || contains(github.repository, 'react')
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache-dependency-path: /Users/piyushpandya/dev/constanci/projects/improving-payments-node-react-master/test/package-lock.json
+
+      - name: Copy .env
+        if: contains(github.repository, 'node')
+        run: |
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          sed -i.bak '1,4d' .env
+          sed -i.bak '1s/^/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\n/' .env
+          sed -i.bak '1s/^/STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}\n/' .env
+        working-directory: ${{ env.my-workspace }}/code/server
+
+      - name: Check start.sh exists in Server Directory 
+        id: check_server_start_sh_file
+        uses: andstor/file-existence-action@v1
+        with:
+          files: "${{ env.my-workspace }}/code/server/start.sh"
+
+      - name: Server Start.sh File exists
+        if: steps.check_server_start_sh_file.outputs.files_exists == 'false'
+        # Only runs if all of the files exists
+        run: echo "start-sh-exists=false" >> $GITHUB_ENV
+
+      - name: Check start.sh exists in Client Directory 
+        id: check_client_start_sh_file
+        if: contains(github.repository, 'react') && (steps.check_server_start_sh_file.outputs.files_exists == 'true')
+        uses: andstor/file-existence-action@v1
+        with:
+          files: "${{ env.my-workspace }}/code/client/start.sh"
+
+      - name: Client Start.sh File exists
+        if: (steps.check_client_start_sh_file.outputs.files_exists == 'false')
+        # Only runs if all of the files exists
+        run: echo "start-sh-exists=false" >> $GITHUB_ENV 
+
+      - name: Install Node Server Dependencies
+        run: npm install
+        if: ${{ contains(github.repository, 'node') && (env.start-sh-exists == 'true') }}
+        working-directory: ${{ env.my-workspace }}/code/server
+      
+      - name: Clean Install React Client Dependancies
+        if: ${{ contains(github.repository, 'react') && (env.start-sh-exists == 'true') }}
+        run: | 
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+        working-directory: ${{ env.my-workspace }}/code/client      
+      ##END Node and React##
+
+      ##START Python ##
+      - name: Copy .env
+        if: ${{ contains(github.repository, 'python') && (env.start-sh-exists == 'true') }}
+        run: |
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          sed -i.bak '1,4d' .env
+          sed -i.bak '1s/^/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\n/' .env
+          sed -i.bak '1s/^/STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}\n/' .env
+        working-directory: ${{ env.my-workspace }}/code/server
+
+      - name: Install Python Server Dependencies
+        if: ${{ contains(github.repository, 'python') && (env.start-sh-exists == 'true') }}
+        run: pip install -r requirements.txt
+        working-directory: ${{ env.my-workspace }}/code/server
+      ##END Python ##
+
+      ##START PHP ##
+      - name: Copy .env for React
+        if: ${{ contains(github.repository, 'PHP') && contains(github.repository, 'react') && (env.start-sh-exists == 'true') }}
+        run: |
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          sed -i.bak '1,4d' .env
+          sed -i.bak '1s/^/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\n/' .env
+          sed -i.bak '1s/^/STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}\n/' .env
+        working-directory: ${{ env.my-workspace }}/code/server
+      
+      - name: Copy .env for HTML
+        if: ${{ contains(github.repository, 'PHP') && contains(github.repository, 'html') && (env.start-sh-exists == 'true') }}
+        run: |
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          sed -i.bak '1,7d' .env
+          sed -i.bak '1s/^/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\n/' .env
+          sed -i.bak '1s/^/STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}\n/' .env
+          sed -i.bak '1s/^/STATIC_DIR=public\n/' .env
+        working-directory: ${{ env.my-workspace }}/code/server
+
+      - name: Install PHP Server Dependencies
+        if: ${{ contains(github.repository, 'PHP') && (env.start-sh-exists == 'true') }}
+        run: composer update
+        working-directory: ${{ env.my-workspace }}/code/server
+      ##END PHP ##
+    
+      ##START Ruby ##
+      - name: Set up Ruby ${{ matrix.ruby-version }}
+        if: ${{ contains(github.repository, 'ruby') && (env.start-sh-exists == 'true') }}
+        uses: ruby/setup-ruby@477b21f02be01bcb8030d50f37cfec92bfa615b6
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+
+      - name: Copy .env
+        if: ${{ contains(github.repository, 'ruby') && (env.start-sh-exists == 'true') }}
+        run: |
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          sed -i.bak '1,4d' .env
+          sed -i.bak '1s/^/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\n/' .env
+          sed -i.bak '1s/^/STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}\n/' .env
+        working-directory: ${{ env.my-workspace }}/code/server
+
+      - name: Install Ruby Server Dependencies
+        if: ${{ contains(github.repository, 'ruby') && (env.start-sh-exists == 'true') }}
+        run: bundle install
+        working-directory: ${{ env.my-workspace }}/code/server
+      
+      - name: Install Ruby Server Dependencies
+        if: ${{ contains(github.repository, 'ruby') && (env.start-sh-exists == 'true') }}
+        run: |
+          gem install sinatra-contrib
+        working-directory: ${{ env.my-workspace }}/code/server
+      ##END Ruby ##
+    
+      ##START Install Test Dependencies ##
+      - name: Install Cypress Test Dependencies
+        run: |
+          npm install
+        if: ${{ (contains(github.repository, 'node') || contains(github.repository, 'python') || contains(github.repository, 'PHP') || contains(github.repository, 'ruby'))  && (env.start-sh-exists == 'true') }}
+        working-directory: ${{ env.my-workspace }}/test
+      ##END Install Test Dependencies ##
+
+      ## START Server and Client ##
+      - name: Start Web Server From Server
+        run: sh ./start.sh
+        if: ${{ (contains(github.repository, 'node') || contains(github.repository, 'python') || contains(github.repository, 'PHP') || contains(github.repository, 'ruby'))  && (env.start-sh-exists == 'true') }}
+        working-directory: ${{ env.my-workspace }}/code/server
+        
+      - name: Start Web Server From Client
+        run: sh ./start.sh
+        if: ${{ (contains(github.repository, 'react'))  && ( env.start-sh-exists == 'true') }}
+        working-directory: ${{ env.my-workspace }}/code/client     
+      ## END Server and Client ##
+
+      ## Set Port Number for Cypress to wait and run on
+      - name: Set Correct Port Number
+        if: ${{ env.start-sh-exists == 'true' }}
+        run: |
+          if ${{ contains(github.repository, 'react') }}
+          then
+              echo "PORT_NUMBER=3000" >> $GITHUB_ENV
+          else
+              echo "PORT_NUMBER=4242" >> $GITHUB_ENV
+          fi
+
+      ## Run Smoke Test ##
+      - name: Cypress Run Smoke Test Suite
+        uses: cypress-io/github-action@v2
+        if: ${{ env.start-sh-exists == 'true' }}
+        with:
+          browser: chrome
+          config: baseUrl=http://localhost:${{env.PORT_NUMBER}}
+          wait-on: 'http://localhost:${{env.PORT_NUMBER}}/'
+          working-directory: ${{env.my-workspace}}/test
+          spec: cypress/integration/smoke.js
+          build: npx cypress info
