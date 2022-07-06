@@ -1,12 +1,12 @@
 /* eslint-disable no-console */
-const express = require('express');
+const express = require("express");
 
 const app = express();
-const { resolve } = require('path');
+const { resolve } = require("path");
 // Replace if using a different env file or config
-require('dotenv').config({ path: './.env' });
-const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
+require("dotenv").config({ path: "./.env" });
+const cors = require("cors");
+const { v4: uuidv4 } = require("uuid");
 
 const allitems = {};
 
@@ -14,28 +14,26 @@ const allitems = {};
 app.use(express.static(process.env.STATIC_DIR));
 
 app.use(
-  express.json(
-    {
-      // Should use middleware or a function to compute it only when
-      // hitting the Stripe webhook endpoint.
-      verify: (req, res, buf) => {
-        if (req.originalUrl.startsWith('/webhook')) {
-          req.rawBody = buf.toString();
-        }
-      },
+  express.json({
+    // Should use middleware or a function to compute it only when
+    // hitting the Stripe webhook endpoint.
+    verify: (req, res, buf) => {
+      if (req.originalUrl.startsWith("/webhook")) {
+        req.rawBody = buf.toString();
+      }
     },
-  ),
+  })
 );
 app.use(cors({ origin: true }));
 
 // load config file
-const fs = require('fs');
+const fs = require("fs");
 
-const configFile = fs.readFileSync('../config.json');
+const configFile = fs.readFileSync("../config.json");
 const config = JSON.parse(configFile);
 
 // load items file for video courses
-const file = require('../items.json');
+const file = require("../items.json");
 
 file.forEach((item) => {
   const initializedItem = item;
@@ -43,36 +41,34 @@ file.forEach((item) => {
   allitems[item.itemId] = initializedItem;
 });
 
-
 // const asyncMiddleware = fn => (req, res, next) => {
 //   Promise.resolve(fn(req, res, next)).catch(next);
 // };
 
 // Routes
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   try {
     const path = resolve(`${process.env.STATIC_DIR}/index.html`);
     if (!fs.existsSync(path)) throw Error();
     res.sendFile(path);
   } catch (error) {
-    const path = resolve('./public/static-file-error.html');
+    const path = resolve("./public/static-file-error.html");
     res.sendFile(path);
   }
 });
 
-app.get('/concert', (req, res) => {
+app.get("/concert", (req, res) => {
   try {
     const path = resolve(`${process.env.STATIC_DIR}/concert.html`);
     if (!fs.existsSync(path)) throw Error();
     res.sendFile(path);
   } catch (error) {
-    const path = resolve('./public/static-file-error.html');
+    const path = resolve("./public/static-file-error.html");
     res.sendFile(path);
   }
 });
 
-
-app.get('/setup-concert-page', (req, res) => {
+app.get("/setup-concert-page", (req, res) => {
   res.send({
     basePrice: config.checkout_base_price,
     currency: config.checkout_currency,
@@ -80,30 +76,30 @@ app.get('/setup-concert-page', (req, res) => {
 });
 
 // Show success page, after user buy concert tickets
-app.get('/concert-success', (req, res) => {
+app.get("/concert-success", (req, res) => {
   try {
     const path = resolve(`${process.env.STATIC_DIR}/concert-success.html`);
     console.log(path);
     if (!fs.existsSync(path)) throw Error();
     res.sendFile(path);
   } catch (error) {
-    const path = resolve('./public/static-file-error.html');
+    const path = resolve("./public/static-file-error.html");
     res.sendFile(path);
   }
 });
 
-app.get('/videos', (req, res) => {
+app.get("/videos", (req, res) => {
   try {
     const path = resolve(`${process.env.STATIC_DIR}/videos.html`);
     if (!fs.existsSync(path)) throw Error();
     res.sendFile(path);
   } catch (error) {
-    const path = resolve('./public/static-file-error.html');
+    const path = resolve("./public/static-file-error.html");
     res.sendFile(path);
   }
 });
 
-app.get('/setup-video-page', (req, res) => {
+app.get("/setup-video-page", (req, res) => {
   res.send({
     discountFactor: config.video_discount_factor,
     minItemsForDiscount: config.video_min_items_for_discount,
@@ -113,15 +109,20 @@ app.get('/setup-video-page', (req, res) => {
 
 // Milestone 1: Signing up
 // Shows the lesson sign up page.
-app.get('/lessons', (req, res) => {
+app.get("/lessons", (req, res) => {
   try {
     const path = resolve(`${process.env.STATIC_DIR}/lessons.html`);
     if (!fs.existsSync(path)) throw Error();
     res.sendFile(path);
   } catch (error) {
-    const path = resolve('./public/static-file-error.html');
+    const path = resolve("./public/static-file-error.html");
     res.sendFile(path);
   }
+});
+
+app.post("/lessons", (req, res) => {
+  // SetupIntent here
+  // name, email, lesson, card
 });
 
 // Milestone 2: '/schedule-lesson'
@@ -152,10 +153,7 @@ app.get('/lessons', (req, res) => {
 //         found for that customer return an msg 'no payment methods found for <customer_id>'
 //    payment_intent_id: if a payment intent was created but not successfully authorized
 // }
-app.post('/schedule-lesson', async (req, res) => {
-
-});
-
+app.post("/schedule-lesson", async (req, res) => {});
 
 // Milestone 2: '/complete-lesson-payment'
 // Capture a payment for a lesson.
@@ -182,9 +180,7 @@ app.post('/schedule-lesson', async (req, res) => {
 //       message: the message returned from the error from Stripe
 // }
 //
-app.post('/complete-lesson-payment', async (req, res) => {
-
-});
+app.post("/complete-lesson-payment", async (req, res) => {});
 
 // Milestone 2: '/refund-lesson'
 // Refunds a lesson payment.  Refund the payment from the customer (or cancel the auth
@@ -214,16 +210,11 @@ app.post('/complete-lesson-payment', async (req, res) => {
 //        message: e.error.message
 //      }
 //  }
-app.post('/refund-lesson', async (req, res) => {
-  
-});
+app.post("/refund-lesson", async (req, res) => {});
 
 // Milestone 3: Managing account info
 // Displays the account update page for a given customer
-app.get('/account-update/:customer_id', async (req, res) => {
-  
-});
-
+app.get("/account-update/:customer_id", async (req, res) => {});
 
 // Milestone 3: '/delete-account'
 // Deletes a customer object if there are no uncaptured payment intents for them.
@@ -255,10 +246,7 @@ app.get('/account-update/:customer_id', async (req, res) => {
 //  }
 //
 
-app.post('/delete-account/:customer_id', async (req, res) => {
-  
-});
-
+app.post("/delete-account/:customer_id", async (req, res) => {});
 
 // Milestone 4: '/calculate-lesson-total'
 // Returns the total amounts for payments for lessons, ignoring payments
@@ -275,10 +263,7 @@ app.post('/delete-account/:customer_id', async (req, res) => {
 //      net_total: net amount the store has earned from the payments.
 // }
 //
-app.get('/calculate-lesson-total', async (req, res) => {
-  
-});
-
+app.get("/calculate-lesson-total", async (req, res) => {});
 
 // Milestone 4: '/find-customers-with-failed-payments'
 // Returns any customer who meets the following conditions:
@@ -311,9 +296,7 @@ app.get('/calculate-lesson-total', async (req, res) => {
 //   <customer_id>: {},
 //   <customer_id>: {},
 // ]
-app.get('/find-customers-with-failed-payments', async (req, res) => {
-  
-});
+app.get("/find-customers-with-failed-payments", async (req, res) => {});
 
 function errorHandler(err, req, res, next) {
   res.status(500).send({ error: { message: err.message } });
@@ -321,4 +304,6 @@ function errorHandler(err, req, res, next) {
 
 app.use(errorHandler);
 
-app.listen(4242, () => console.log(`Node server listening on port http://localhost:${4242}`));
+app.listen(4242, () =>
+  console.log(`Node server listening on port http://localhost:${4242}`)
+);
