@@ -6,12 +6,20 @@ import { useState } from "react";
 //Registration Form Component, process user info for online session.
 //const textSingup = ;
 const RegistrationForm = ({ session, details }) => {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const elements = useElements();
   const stripe = useStripe();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [intent, setIntent] = useState(null);
+
+  const isActive = !!intent;
+  const last4 = intent?.payment_method?.card?.last4;
+  const customerId = intent?.payment_method?.customer;
+  // console.log({ isActive, last4, customerId, intent });
 
   const handleSubmit = async () => {
+    setIsLoading(true);
     const card = elements.getElement(CardElement);
 
     // create customer if none exist
@@ -33,22 +41,33 @@ const RegistrationForm = ({ session, details }) => {
         const { setupIntent } = json;
         const { client_secret: clientSecret } = setupIntent;
 
-        const confirmCardSetup = await stripe.confirmCardSetup(clientSecret, {
-          return_url: "http://localhost:3000/lessons",
-          payment_method: {
-            card,
-            billing_details: {
-              name,
-              email,
+        // Add card to intent
+        const { setupIntent: updatedSetupIntent, error } =
+          await stripe.confirmCardSetup(clientSecret, {
+            return_url: "http://localhost:3000/lessons",
+            payment_method: {
+              card,
+              billing_details: {
+                name,
+                email,
+              },
             },
-          },
-        });
-        console.log({ confirmCardSetup });
+            expand: ["payment_method"], // Can't query for 'payment_method.customer' here req server key
+          });
+
+        // TODO: Error confirming card https://stripe.com/docs/api/errors
+        if (error) {
+          console.error(error);
+        }
+
+        console.log({ updatedSetupIntent });
+        setIsLoading(false);
+        setIntent(updatedSetupIntent);
       })
       .catch((e) => console.error({ e }));
   };
 
-  return (
+  return !isActive ? (
     <div className={`lesson-form`}>
       <div className={`lesson-desc`}>
         <h3>Registration details</h3>
@@ -97,7 +116,7 @@ const RegistrationForm = ({ session, details }) => {
             <span id="account_link"></span>.
           </div>
         </div>
-        <button id="submit" onClick={handleSubmit}>
+        <button id="submit" onClick={handleSubmit} disabled={isLoading}>
           <div className="spinner hidden" id="spinner"></div>
           <span id="button-text">Request Lesson</span>
         </button>
@@ -106,9 +125,17 @@ const RegistrationForm = ({ session, details }) => {
           which we will confirm within 24 hrs.
         </div>
       </div>
-
-      <SingupComplete active={false} email="" last4="" customer_id="" />
+    </div>
+  ) : (
+    <div className={`lesson-form`}>
+      <SingupComplete
+        active={isActive}
+        email={email}
+        last4={last4}
+        customerId={customerId}
+      />
     </div>
   );
 };
+
 export default RegistrationForm;

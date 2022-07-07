@@ -340,6 +340,12 @@ function errorHandler(err, req, res, next) {
   res.status(500).send({ error: { message: err.message } });
 }
 
+app.get("/config", (req, res) => {
+  res.json({
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+  });
+});
+
 app.use(errorHandler);
 
 app.listen(4242, () =>

@@ -4,7 +4,11 @@ import "../css/lessons.scss";
 import Header from "../components/Header";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
+import { useContext } from "react";
+import { StripeContext } from "..";
 
+// The docs say NOT to use loadStripe in the component like the example below?!
+// https://github.com/stripe-samples/accept-a-payment/blob/main/custom-payment-flow/client/react-cra/src/index.js#L8
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 const months = [
@@ -69,6 +73,11 @@ const Lessons = () => {
     items.push(formatSession(2, "third", session, "5:00 p.m."));
     setSessions((prev) => [...prev, ...items]);
   }, []);
+
+  const { stripePublishableKey } = useContext(StripeContext);
+
+  if (!stripePublishableKey) return <div>Loading...</div>;
+  const stripePromise = loadStripe(stripePublishableKey);
 
   return (
     <main className="main-lessons">
