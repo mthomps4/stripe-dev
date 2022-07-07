@@ -18,6 +18,8 @@ const RegistrationForm = ({ session, details }) => {
   const customerId = intent?.payment_method?.customer;
   // console.log({ isActive, last4, customerId, intent });
 
+  const isValid = email && name && elements.getElement(CardElement);
+
   const handleSubmit = async () => {
     setIsLoading(true);
     const card = elements.getElement(CardElement);
@@ -116,7 +118,11 @@ const RegistrationForm = ({ session, details }) => {
             <span id="account_link"></span>.
           </div>
         </div>
-        <button id="submit" onClick={handleSubmit} disabled={isLoading}>
+        <button
+          id="submit"
+          onClick={handleSubmit}
+          disabled={!isValid || isLoading}
+        >
           <div className="spinner hidden" id="spinner"></div>
           <span id="button-text">Request Lesson</span>
         </button>
