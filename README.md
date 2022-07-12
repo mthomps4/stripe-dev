@@ -1,6 +1,6 @@
 _____
 > **_Stripe Training & Certification:_** <br />
->_The **Payments Integration Challenge** is a scenario-driven simulation, goals and feedback are delivered as if from a client.  Please read the project and milestone briefs in full, as they contain essential info required to complete the challenge.  We've simplified some aspects of the application, so you need to suspend disbelief.  If you need assistance, reach out to verifications@stripe.com._
+>_The **Payments Integration Challenge** is a scenario-driven simulation, goals and feedback are delivered as if from a client.  Please read the project and milestone briefs in full, as they contain essential info required to complete the challenge.  We've simplified some aspects of the application, so you need to suspend disbelief.  If you need assistance, reach out to partner-support@stripe.com._
 ___
 
 <details> 
