@@ -131,36 +131,52 @@ app.post("/lessons", async (req, res) => {
     body: { date, time, name, email },
   } = req;
 
+  console.log({ date, time });
+
   const lessonMetaData = JSON.stringify({
     date,
     time,
   });
 
-  // Create Customer w/ uniq email
-  // - add meta data "first_lesson" - Lesson date and time they select
-  const customer = await stripe.customers.create({
-    name,
-    email,
-    metadata: {
-      lesson: lessonMetaData,
-    },
-  });
+  try {
+    // already exists check (NO DB in Challenge)
+    const { data: existingCustomers = [] } = await stripe.customers.list({
+      email,
+    });
 
-  // if customer fails...
+    if (existingCustomers.length > 0) {
+      return res.json({
+        error: {
+          type: "CUSTOMER_EXISTS",
+          message: `customer already exists with email: ${email}`,
+        },
+      });
+    }
 
-  // Create Intent w/out payment
-  const setupIntent = await stripe.setupIntents.create({
-    customer: customer.id,
-    payment_method_types: ["card"],
-    metadata: {
-      lesson: lessonMetaData,
-    },
-    expand: ["customer"],
-  });
+    // Create Customer w/ uniq email
+    // - add meta data "first_lesson" - Lesson date and time they select
+    const customer = await stripe.customers.create({
+      name,
+      email,
+      metadata: {
+        first_lesson: lessonMetaData,
+      },
+    });
 
-  // if setup fails...
+    // Create Intent w/out payment
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ["card"],
+      metadata: {
+        first_lesson: lessonMetaData,
+      },
+      expand: ["customer"],
+    });
 
-  return res.json({ setupIntent });
+    return res.json({ setupIntent });
+  } catch (error) {
+    return res.json({ error });
+  }
 });
 
 // Milestone 2: '/schedule-lesson'
