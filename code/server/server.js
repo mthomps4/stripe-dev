@@ -131,8 +131,6 @@ app.post("/lessons", async (req, res) => {
     body: { date, time, name, email },
   } = req;
 
-  console.log({ date, time });
-
   const lessonMetaData = JSON.stringify({
     date,
     time,

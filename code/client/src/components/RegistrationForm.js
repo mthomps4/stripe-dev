@@ -14,24 +14,58 @@ const RegistrationForm = ({ session, details }) => {
   const [intent, setIntent] = useState(null);
   const [error, setError] = useState(null);
 
-  const isActive = !!intent;
+  const isActive = intent?.status === "succeeded";
   const last4 = intent?.payment_method?.card?.last4;
   const customerId = intent?.payment_method?.customer;
 
   const isValid = email && name && elements.getElement(CardElement);
   const alreadyExists = error && error.type === "CUSTOMER_EXISTS";
-  const cardInvalid = error && error.type === "validation_error";
+  const cardErrors = [
+    "validation_error",
+    "card_error",
+    "invalid_request_error",
+  ];
+  const cardInvalid = error && cardErrors.includes(error.type);
 
   const handleError = (error) => {
-    // const { type, message } = error;
     console.log({ error });
     setIsLoading(false);
     setError(error);
   };
 
+  const confirmCardSetup = async (clientSecret) => {
+    const card = elements.getElement(CardElement);
+    // Add card to intent
+    const { setupIntent: updatedSetupIntent, error } =
+      await stripe.confirmCardSetup(clientSecret, {
+        return_url: "http://localhost:3000/lessons",
+        payment_method: {
+          card,
+          billing_details: {
+            name,
+            email,
+          },
+        },
+        expand: ["payment_method"], // Can't query for 'payment_method.customer' here req server key
+      });
+
+    if (error) {
+      handleError(error);
+    } else {
+      // should we set this anyway?? :thinking:
+      setIntent(updatedSetupIntent);
+    }
+
+    setIsLoading(false);
+  };
+
   const handleSubmit = async () => {
     setIsLoading(true);
-    const card = elements.getElement(CardElement);
+
+    // Customer was created but card declined.
+    if (intent?.status === "requires_payment_method") {
+      return confirmCardSetup(intent.client_secret);
+    }
 
     // create customer if none exist
     // create basic setup intent
@@ -51,33 +85,14 @@ const RegistrationForm = ({ session, details }) => {
       .then((res) => res.json())
       .then(async (json) => {
         const { setupIntent, error: setupIntentError } = json;
+        // Save state secret/state regardless of error
+        setIntent(setupIntent);
         if (setupIntentError) {
+          // Customer exists and SetupIntent Errors
           return handleError(setupIntentError);
         }
-        const { client_secret: clientSecret } = setupIntent;
-
-        // Add card to intent
-        const { setupIntent: updatedSetupIntent, error } =
-          await stripe.confirmCardSetup(clientSecret, {
-            return_url: "http://localhost:3000/lessons",
-            payment_method: {
-              card,
-              billing_details: {
-                name,
-                email,
-              },
-            },
-            expand: ["payment_method"], // Can't query for 'payment_method.customer' here req server key
-          });
-
-        // TODO: Error confirming card https://stripe.com/docs/api/errors
-        if (error) {
-          console.error(error);
-          handleError(error);
-        }
-
+        confirmCardSetup(setupIntent.client_secret);
         setIsLoading(false);
-        setIntent(updatedSetupIntent);
       })
       .catch((e) => {
         console.error({ e });
