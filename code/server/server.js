@@ -39,6 +39,7 @@ const config = JSON.parse(configFile);
 // load items file for video courses
 const file = require("../items.json");
 const { default: Stripe } = require("stripe");
+const { format } = require("util");
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 file.forEach((item) => {
@@ -205,7 +206,58 @@ app.post("/lessons", async (req, res) => {
 //         found for that customer return an msg 'no payment methods found for <customer_id>'
 //    payment_intent_id: if a payment intent was created but not successfully authorized
 // }
-app.post("/schedule-lesson", async (req, res) => {});
+
+// return {payment, error: {code, message, payment_intent_id}}
+app.post("/schedule-lesson", async (req, res) => {
+  const { customer_id: customerId, amount, description } = req.body;
+
+  const sendError = (e, intentId) => {
+    const defaultErrorMessage = `No Customer or Payment Method Found for ${customerId}`;
+
+    return res.status(400).json({
+      error: {
+        ...e,
+        message: e.message || defaultErrorMessage,
+        payment_intent_id: intentId,
+      },
+    });
+  };
+
+  stripe.customers
+    .listPaymentMethods(customerId, { type: "card" })
+    .then((methods) => {
+      if (methods?.data?.length == 0) {
+        throw new Error("No Payment Method Found for Customer");
+      }
+
+      const paymentMethodId = methods?.data[0]?.id;
+
+      stripe.paymentIntents
+        .create({
+          payment_method_types: ["card"],
+          amount,
+          currency: "usd",
+          capture_method: "manual", // place hold on card
+          confirm: true,
+          customer: customerId,
+          description,
+          payment_method: paymentMethodId,
+          metadata: {
+            type: "lessons-payment",
+          },
+        })
+        .then((payment) => {
+          console.log({ payment });
+          return res.status(200).json({ payment });
+        })
+        .catch((e) => {
+          sendError(e);
+        });
+    })
+    .catch((e) => {
+      sendError(e);
+    });
+});
 
 // Milestone 2: '/complete-lesson-payment'
 // Capture a payment for a lesson.
