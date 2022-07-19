@@ -211,7 +211,7 @@ app.post("/lessons", async (req, res) => {
 app.post("/schedule-lesson", async (req, res) => {
   const { customer_id: customerId, amount, description } = req.body;
 
-  const sendError = (e, intentId) => {
+  const handleError = (e, intentId) => {
     const defaultErrorMessage = `No Customer or Payment Method Found for ${customerId}`;
 
     return res.status(400).json({
@@ -247,15 +247,15 @@ app.post("/schedule-lesson", async (req, res) => {
           },
         })
         .then((payment) => {
-          console.log({ payment });
+          // console.log({ payment });
           return res.status(200).json({ payment });
         })
         .catch((e) => {
-          sendError(e);
+          handleError(e);
         });
     })
     .catch((e) => {
-      sendError(e);
+      handleError(e);
     });
 });
 
@@ -288,9 +288,11 @@ app.post("/complete-lesson-payment", async (req, res) => {
   const { payment_intent_id, amount = undefined } = req.body;
 
   const handleError = (error) => {
-    console.log({ error });
+    // console.log({ error });
     // raw includes the `message`  and `code` - error is the full response stack.
-    return res.status(400).json({ error: error.raw });
+    return res.status(400).json({
+      error: error.raw,
+    });
   };
 
   const handleSuccess = (payment) => {
@@ -314,7 +316,7 @@ app.post("/complete-lesson-payment", async (req, res) => {
       const amount_to_capture =
         amount <= intent.amount ? amount : intent.amount;
 
-      stripe.paymentIntents
+      return stripe.paymentIntents
         .capture(payment_intent_id, { amount_to_capture })
         .then((payment) => handleSuccess(payment))
         .catch((e) => handleError(e));
@@ -322,13 +324,13 @@ app.post("/complete-lesson-payment", async (req, res) => {
 
     // update or confirm
     if (validAmountChange) {
-      stripe.paymentIntents
+      return stripe.paymentIntents
         .update(payment_intent_id, { amount })
         .then(() => confirmPayment())
         .catch((e) => handleError(e));
     }
 
-    confirmPayment();
+    return confirmPayment();
   };
 
   return stripe.paymentIntents
@@ -365,7 +367,36 @@ app.post("/complete-lesson-payment", async (req, res) => {
 //        message: e.error.message
 //      }
 //  }
-app.post("/refund-lesson", async (req, res) => {});
+app.post("/refund-lesson", async (req, res) => {
+  const { payment_intent_id, amount = undefined } = req.body;
+
+  const handleError = (error) => {
+    console.log({ error });
+    // raw includes the `message`  and `code` - error is the full response stack.
+    return res.status(400).json({ error: error.raw });
+  };
+
+  const handleSuccess = (refund) => {
+    return res.status(200).json({ refund: refund.id });
+  };
+
+  const processRefund = (intent) => {
+    const validRefundAmount = amount ? amount <= intent.amount : true;
+
+    stripe.refunds
+      .create({
+        payment_intent: payment_intent_id,
+        amount: validRefundAmount ? amount : undefined,
+      })
+      .then((refund) => handleSuccess(refund))
+      .catch((e) => handleError(e));
+  };
+
+  return stripe.paymentIntents
+    .retrieve(payment_intent_id)
+    .then((intent) => processRefund(intent))
+    .catch((e) => handleError(e));
+});
 
 // Milestone 3: Managing account info
 // Displays the account update page for a given customer
