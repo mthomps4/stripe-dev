@@ -284,7 +284,58 @@ app.post("/schedule-lesson", async (req, res) => {
 //       message: the message returned from the error from Stripe
 // }
 //
-app.post("/complete-lesson-payment", async (req, res) => {});
+app.post("/complete-lesson-payment", async (req, res) => {
+  const { payment_intent_id, amount = undefined } = req.body;
+
+  const handleError = (error) => {
+    console.log({ error });
+    // raw includes the `message`  and `code` - error is the full response stack.
+    return res.status(400).json({ error: error.raw });
+  };
+
+  const handleSuccess = (payment) => {
+    return res.status(200).json({ payment });
+  };
+
+  const confirmPayment = () => {
+    stripe.paymentIntents
+      .confirm(payment_intent_id)
+      .then((payment) => handleSuccess(payment))
+      .catch((e) => handleError(e));
+  };
+
+  const processPayment = (intent) => {
+    const validAmountChange = amount ? amount <= intent.amount : true;
+    const shouldCapture =
+      intent.status === "requires_capture" && validAmountChange;
+
+    // If requires capture
+    if (shouldCapture) {
+      const amount_to_capture =
+        amount <= intent.amount ? amount : intent.amount;
+
+      stripe.paymentIntents
+        .capture(payment_intent_id, { amount_to_capture })
+        .then((payment) => handleSuccess(payment))
+        .catch((e) => handleError(e));
+    }
+
+    // update or confirm
+    if (validAmountChange) {
+      stripe.paymentIntents
+        .update(payment_intent_id, { amount })
+        .then(() => confirmPayment())
+        .catch((e) => handleError(e));
+    }
+
+    confirmPayment();
+  };
+
+  return stripe.paymentIntents
+    .retrieve(payment_intent_id)
+    .then((intent) => processPayment(intent))
+    .catch((e) => handleError(e));
+});
 
 // Milestone 2: '/refund-lesson'
 // Refunds a lesson payment.  Refund the payment from the customer (or cancel the auth
