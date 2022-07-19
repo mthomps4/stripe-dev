@@ -76,3 +76,4 @@ _As always, you should **never** commit API secrets into source control. Make su
  Milestone 1 Started On Wed Jul  6 07:57:39 UTC 2022
 
  - _Milestone 2 Started On Thu Jul 14 14:58:30 UTC 2022_ 
+ - _Milestone 3 Started On Tue Jul 19 15:50:06 UTC 2022_ 
