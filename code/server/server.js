@@ -516,7 +516,53 @@ app.post("/account-update/:customer_id", async (req, res) => {
 //  }
 //
 
-app.post("/delete-account/:customer_id", async (req, res) => {});
+app.post("/delete-account/:customer_id", async (req, res) => {
+  const {
+    params: { customer_id },
+  } = req;
+
+  const pendingPaymentStatuses = [
+    "requires_payment_method",
+    "requires_confirmation",
+    "requires_action",
+    "processing",
+    "requires_capture",
+  ];
+
+  console.log({ customer_id });
+
+  const handleError = (error) => {
+    return res.status(400).json(error);
+  };
+
+  const handleSuccess = (data) => {
+    return res.status(200).json(data);
+  };
+
+  const deleteCustomer = () => {
+    return stripe.customers
+      .del(customer_id)
+      .then((data) => handleSuccess(data))
+      .catch((e) => handleError(e));
+  };
+
+  return stripe.paymentIntents
+    .list({
+      customer: customer_id,
+    })
+    .then(({ data: paymentIntents }) => {
+      const pendingPayments = paymentIntents.filter((intent) =>
+        pendingPaymentStatuses.includes(intent.status)
+      );
+      console.log({ pendingPayments });
+      if (pendingPayments.length > 0) {
+        const paymentIds = pendingPayments.map((p) => p.id);
+        return handleSuccess({ uncaptured_payments: paymentIds });
+      }
+      return deleteCustomer();
+    })
+    .catch((e) => handleError(e));
+});
 
 // Milestone 4: '/calculate-lesson-total'
 // Returns the total amounts for payments for lessons, ignoring payments
