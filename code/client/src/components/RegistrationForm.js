@@ -13,12 +13,20 @@ const RegistrationForm = ({ session, details }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [intent, setIntent] = useState(null);
   const [error, setError] = useState(null);
+  const [cardComplete, setCardComplete] = useState(false);
 
   const isActive = intent?.status === "succeeded";
   const last4 = intent?.payment_method?.card?.last4;
   const customerId = intent?.payment_method?.customer;
 
-  const isValid = email && name && elements.getElement(CardElement);
+  elements &&
+    elements.getElement(CardElement) &&
+    elements.getElement(CardElement).on("change", (e) => {
+      const { complete } = e;
+      setCardComplete(complete);
+    });
+
+  const isValid = !!(email && name && cardComplete);
   const alreadyExists = error && error.type === "CUSTOMER_EXISTS";
   const cardErrors = [
     "validation_error",

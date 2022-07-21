@@ -400,7 +400,91 @@ app.post("/refund-lesson", async (req, res) => {
 
 // Milestone 3: Managing account info
 // Displays the account update page for a given customer
-app.get("/account-update/:customer_id", async (req, res) => {});
+app.get("/account-update/:customer_id", async (req, res) => {
+  const { customer_id } = req.params;
+
+  const handleError = (error) => {
+    console.log({ error });
+    // raw includes the `message`  and `code` - error is the full response stack.
+    return res.status(400).json({ error: error.raw });
+  };
+
+  const handleSuccess = (data) => {
+    return res.status(200).json(data);
+  };
+
+  return stripe.customers
+    .listPaymentMethods(customer_id, {
+      type: "card",
+      expand: ["data.customer"],
+    })
+    .then(({ data }) =>
+      handleSuccess({ customer: data[0]?.customer, paymentMethods: data })
+    )
+    .catch((e) => handleError(e));
+});
+
+app.post("/account-update/:customer_id", async (req, res) => {
+  const {
+    body: { customerId, name, email },
+  } = req;
+
+  const handleError = (e) => {
+    console.log(e);
+    res.status(400).json({ error: e });
+  };
+
+  const handleSuccess = (setupIntent) => {
+    res.status(200).json({ setupIntent });
+  };
+
+  const createIntent = (customer) => {
+    return stripe.setupIntents
+      .create({
+        customer: customer.id,
+        payment_method_types: ["card"],
+        expand: ["customer"],
+      })
+      .then((setupIntent) => handleSuccess(setupIntent))
+      .catch((e) => handleError(e));
+  };
+
+  const updateCustomer = () => {
+    return stripe.customers
+      .update(customerId, {
+        email,
+        name,
+      })
+      .then((customer) => {
+        return createIntent(customer);
+      })
+      .catch((e) => handleError(e));
+  };
+
+  const checkExistingEmail = () => {
+    return stripe.customers
+      .list({
+        email,
+      })
+      .then(({ data: existingCustomers }) => {
+        if (existingCustomers.length > 0) {
+          return handleError({
+            type: "CUSTOMER_EXISTS",
+            message: `Email is already being used`,
+          });
+        }
+
+        return updateCustomer();
+      })
+      .catch((e) => handleError(e));
+  };
+
+  if (email) {
+    return checkExistingEmail();
+  } else {
+    return updateCustomer();
+  }
+});
 
 // Milestone 3: '/delete-account'
 // Deletes a customer object if there are no uncaptured payment intents for them.

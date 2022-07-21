@@ -9,7 +9,7 @@ import { StripeContext } from "..";
 
 // The docs say NOT to use loadStripe in the component like the example below?!
 // https://github.com/stripe-samples/accept-a-payment/blob/main/custom-payment-flow/client/react-cra/src/index.js#L8
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+// const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 const months = [
   "Jan",
