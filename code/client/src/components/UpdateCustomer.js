@@ -8,14 +8,13 @@ const UpdateCustomer = ({ customer, setCustomer, setPaymentMethods }) => {
   const stripe = useStripe();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [cardComplete, setCardComplete] = useState(false);
+  // const [cardComplete, setCardComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [intent, setIntent] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
   const alreadyExists = error?.type === "CUSTOMER_EXISTS";
-  console.log({ alreadyExists, error });
 
   const cardErrors = [
     "validation_error",
@@ -31,12 +30,12 @@ const UpdateCustomer = ({ customer, setCustomer, setPaymentMethods }) => {
     }
   }, [customer]);
 
-  elements &&
-    elements.getElement(CardElement) &&
-    elements.getElement(CardElement).on("change", (e) => {
-      const { complete } = e;
-      setCardComplete(complete);
-    });
+  // elements &&
+  //   elements.getElement(CardElement) &&
+  //   elements.getElement(CardElement).on("change", (e) => {
+  //     const { complete } = e;
+  //     setCardComplete(complete);
+  //   });
 
   // removed 'cardComplete' -- test allows for email update with out card entry
   const isValid = !!(email && name);

@@ -19,14 +19,15 @@ const RegistrationForm = ({ session, details }) => {
   const last4 = intent?.payment_method?.card?.last4;
   const customerId = intent?.payment_method?.customer;
 
-  elements &&
-    elements.getElement(CardElement) &&
-    elements.getElement(CardElement).on("change", (e) => {
-      const { complete } = e;
-      setCardComplete(complete);
-    });
+  // elements &&
+  //   elements.getElement(CardElement) &&
+  //   elements.getElement(CardElement).on("change", (e) => {
+  //     const { complete } = e;
+  //     setCardComplete(complete);
+  //   });
 
-  const isValid = !!(email && name && cardComplete);
+  // const isValid = !!(email && name && cardComplete);
+  const isValid = !!(email && name);
   const alreadyExists = error && error.type === "CUSTOMER_EXISTS";
   const cardErrors = [
     "validation_error",
