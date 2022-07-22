@@ -583,6 +583,7 @@ app.get("/calculate-lesson-total", async (req, res) => {
 
   // Real world... would loop 'has_more'
   stripe.paymentIntents
+    // Search isn't real time
     // .search({
     //   query: `created>${sevenDaysAgo} status:"succeeded" metadata["type"]:"lessons-payment"`,
     //   limit: 100,
