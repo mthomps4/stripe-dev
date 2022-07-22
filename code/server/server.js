@@ -529,8 +529,6 @@ app.post("/delete-account/:customer_id", async (req, res) => {
     "requires_capture",
   ];
 
-  console.log({ customer_id });
-
   const handleError = (error) => {
     return res.status(400).json(error);
   };
@@ -554,7 +552,6 @@ app.post("/delete-account/:customer_id", async (req, res) => {
       const pendingPayments = paymentIntents.filter((intent) =>
         pendingPaymentStatuses.includes(intent.status)
       );
-      console.log({ pendingPayments });
       if (pendingPayments.length > 0) {
         const paymentIds = pendingPayments.map((p) => p.id);
         return handleSuccess({ uncaptured_payments: paymentIds });
@@ -579,7 +576,105 @@ app.post("/delete-account/:customer_id", async (req, res) => {
 //      net_total: net amount the store has earned from the payments.
 // }
 //
-app.get("/calculate-lesson-total", async (req, res) => {});
+app.get("/calculate-lesson-total", async (req, res) => {
+  const sevenDaysAgo = Math.round(
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime() / 1000
+  );
+
+  // Real world... would loop 'has_more'
+  stripe.paymentIntents
+    // .search({
+    //   query: `created>${sevenDaysAgo} status:"succeeded" metadata["type"]:"lessons-payment"`,
+    //   limit: 100,
+    //   expand: ["data.payment_method", "data.charges.data.balance_transaction"],
+    // })
+    .list({
+      created: {
+        gt: sevenDaysAgo,
+      },
+      limit: 100,
+      expand: ["data.payment_method", "data.charges.data.balance_transaction"],
+    })
+    .autoPagingToArray({ limit: 10000 })
+    .then((paymentIntents) => {
+      console.log({ paymentIntents });
+      // const transactions = paymentIntents.map((i) => {
+      //   if (i.status === "succeeded") {
+      //     return i.charges.data[0].balance_transaction;
+      //   }
+      // });
+
+      const initialValue = { payment_total: 0, fee_total: 0, net_total: 0 };
+      const calculatedTotals = paymentIntents.reduce(
+        (previousValue, currentValue) => {
+          if (currentValue.status === "succeeded") {
+            const { amount, fee, net } =
+              currentValue.charges.data[0].balance_transaction;
+            const { payment_total, fee_total, net_total } = previousValue;
+            const newTotal = payment_total + amount;
+            const newFee = fee_total + fee;
+            const newNetTotal = net_total + net;
+
+            return {
+              payment_total: newTotal,
+              fee_total: newFee,
+              net_total: newNetTotal,
+            };
+          }
+          return previousValue;
+        },
+        initialValue
+      );
+
+      return res.status(200).json({ ...calculatedTotals });
+    })
+    .catch((e) => {
+      console.log({ e });
+      return res.status(400).json({ e });
+    });
+});
+
+// {
+//   id: 'pi_3LNHJlJDOu8fwcvC0B9VDmvb',
+//   object: 'payment_intent',
+//   amount: 123,
+//   amount_capturable: 0,
+//   amount_details: [Object],
+//   amount_received: 123,
+//   application: null,
+//   application_fee_amount: null,
+//   automatic_payment_methods: null,
+//   canceled_at: null,
+//   cancellation_reason: null,
+//   capture_method: 'manual',
+//   charges: [Object],
+//   client_secret: 'pi_3LNHJlJDOu8fwcvC0B9VDmvb_secret_tJSduUnl269gUFxw3kVidEEPA',
+//   confirmation_method: 'automatic',
+//   created: 1658240553,
+//   currency: 'usd',
+//   customer: 'cus_M5SEouXG3Cp6Zc',
+//   description: 'Schedule Lesson Route API Test',
+//   invoice: null,
+//   last_payment_error: null,
+//   livemode: false,
+//   metadata: [Object],
+//   next_action: null,
+//   on_behalf_of: null,
+//   payment_method: 'pm_1LNHJjJDOu8fwcvCZO3yiLO7',
+//   payment_method_options: [Object],
+//   payment_method_types: [Array],
+//   processing: null,
+//   receipt_email: null,
+//   review: null,
+//   setup_future_usage: null,
+//   shipping: null,
+//   source: null,
+//   statement_descriptor: null,
+//   statement_descriptor_suffix: null,
+//   status: 'succeeded',
+//   transfer_data: null,
+//   transfer_group: null
+// },
 
 // Milestone 4: '/find-customers-with-failed-payments'
 // Returns any customer who meets the following conditions:
