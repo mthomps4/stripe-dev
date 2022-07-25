@@ -581,7 +581,7 @@ app.get("/calculate-lesson-total", async (req, res) => {
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime() / 1000
   );
 
-  // Real world... would loop 'has_more'
+  // Real world... would loop 'has_more'... j/k they have a helper 'autoPagingToArray'
   stripe.paymentIntents
     // Search isn't real time
     // .search({
@@ -598,13 +598,6 @@ app.get("/calculate-lesson-total", async (req, res) => {
     })
     .autoPagingToArray({ limit: 10000 })
     .then((paymentIntents) => {
-      console.log({ paymentIntents });
-      // const transactions = paymentIntents.map((i) => {
-      //   if (i.status === "succeeded") {
-      //     return i.charges.data[0].balance_transaction;
-      //   }
-      // });
-
       const initialValue = { payment_total: 0, fee_total: 0, net_total: 0 };
       const calculatedTotals = paymentIntents.reduce(
         (previousValue, currentValue) => {
@@ -634,48 +627,6 @@ app.get("/calculate-lesson-total", async (req, res) => {
       return res.status(400).json({ e });
     });
 });
-
-// {
-//   id: 'pi_3LNHJlJDOu8fwcvC0B9VDmvb',
-//   object: 'payment_intent',
-//   amount: 123,
-//   amount_capturable: 0,
-//   amount_details: [Object],
-//   amount_received: 123,
-//   application: null,
-//   application_fee_amount: null,
-//   automatic_payment_methods: null,
-//   canceled_at: null,
-//   cancellation_reason: null,
-//   capture_method: 'manual',
-//   charges: [Object],
-//   client_secret: 'pi_3LNHJlJDOu8fwcvC0B9VDmvb_secret_tJSduUnl269gUFxw3kVidEEPA',
-//   confirmation_method: 'automatic',
-//   created: 1658240553,
-//   currency: 'usd',
-//   customer: 'cus_M5SEouXG3Cp6Zc',
-//   description: 'Schedule Lesson Route API Test',
-//   invoice: null,
-//   last_payment_error: null,
-//   livemode: false,
-//   metadata: [Object],
-//   next_action: null,
-//   on_behalf_of: null,
-//   payment_method: 'pm_1LNHJjJDOu8fwcvCZO3yiLO7',
-//   payment_method_options: [Object],
-//   payment_method_types: [Array],
-//   processing: null,
-//   receipt_email: null,
-//   review: null,
-//   setup_future_usage: null,
-//   shipping: null,
-//   source: null,
-//   statement_descriptor: null,
-//   statement_descriptor_suffix: null,
-//   status: 'succeeded',
-//   transfer_data: null,
-//   transfer_group: null
-// },
 
 // Milestone 4: '/find-customers-with-failed-payments'
 // Returns any customer who meets the following conditions:
@@ -708,7 +659,72 @@ app.get("/calculate-lesson-total", async (req, res) => {
 //   <customer_id>: {},
 //   <customer_id>: {},
 // ]
-app.get("/find-customers-with-failed-payments", async (req, res) => {});
+app.get("/find-customers-with-failed-payments", async (req, res) => {
+  const sevenDaysAgo = Math.round(
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime() / 1000
+  );
+
+  const handleError = (error) => {
+    console.log({ error });
+    return res.status(400).json({ error });
+  };
+
+  const handleSuccess = (data) => {
+    return res.status(200).json(data);
+  };
+
+  // same issue with search
+  stripe.paymentIntents
+    .list({
+      created: {
+        gt: sevenDaysAgo,
+      },
+      limit: 100,
+      expand: [
+        "data.last_payment_error.payment_method",
+        "data.payment_method",
+        "data.customer",
+      ],
+    })
+    .autoPagingToArray({ limit: 10000 })
+    .then((paymentIntents) => {
+      const initialValue = [];
+      const failedPayments = paymentIntents.reduce((previous, intent) => {
+        // if (
+        //   intent.payment_method?.id ===
+        //   intent.last_payment_error.payment_method.id
+        // ) {
+        //   console.log("RAWR -- who cares");
+        // }
+
+        if (intent.last_payment_error && intent.customer) {
+          previous.push({
+            [`${intent.customer.id}`]: {
+              customer: {
+                email: intent.customer.email,
+                name: intent.customer.name,
+              },
+              payment_intent: {
+                created: intent.created, //created timestamp for the payment intent
+                description: intent.description, //description from the payment intent
+                status: intent.charges.data[0].status, // the status of the last charge
+                error: intent.charges.data[0].outcome.type, //the error returned from the payment attempt - C'MoN Stripe! do better.
+              },
+              payment_method: {
+                last4: intent.last_payment_error.payment_method.card.last4,
+                brand: intent.last_payment_error.payment_method.card.brand,
+              },
+            },
+          });
+        }
+        return previous;
+      }, initialValue);
+
+      return failedPayments;
+    })
+    .then((failedPayments) => handleSuccess(failedPayments))
+    .catch((error) => handleError(error));
+});
 
 function errorHandler(err, req, res, next) {
   res.status(500).send({ error: { message: err.message } });
